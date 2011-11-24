@@ -1,5 +1,8 @@
 var moment = require("moment");
 
+var fs = require("fs");
+var log = fs.createWriteStream('log3.txt', {'flags': 'a'});
+
 var redis = require("redis"), client = redis.createClient();
 client.on("error", function (err) { console.log("Error " + err); });
 
@@ -17,6 +20,7 @@ pcap_session.on('packet', function (raw_packet) {
             data = packet.link.ip.tcp.data;
 
         if ( data && matcher_get.test(data.toString()) )   {
+        log.write(data + "\nbreak\n"); 
         //if ( data && matcher_get.test(data.toString()) && matcher_text_html.test(data.toString())  ) {
         
             var http = get_data_from_packet(data, packet.link.ip, packet.pcap_header.time_ms);
@@ -34,7 +38,8 @@ pcap_session.on('packet', function (raw_packet) {
                         "saddr", http.saddr, 
                         "daddr", http.daddr,
                         "time", http.time, 
-                        "time_format", http.time_format]);
+                        "time_format", http.time_format,
+                        "data", data]);
 
                     client.zadd("http_list", http.time, newid+http.host);
                     client.sadd("hosts", http.host);
