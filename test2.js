@@ -21,27 +21,29 @@ pcap_session.on('packet', function (raw_packet) {
         
             var http = get_data_from_packet(data, packet.link.ip, packet.pcap_header.time_ms);
 
-            client.incr("nextid_id", function(err, res) {
-                console.log(res);
-                var newid = "http:"+res;
-                
-                client.hmset([newid, 
-                    "url", http.url, 
-                    "host", http.host, 
-                    "agent", http.agent,
-                    "lang", http.lang, 
-                    "saddr", http.saddr, 
-                    "daddr", http.daddr,
-                    "time", http.time, 
-                    "time_format", http.time_format]);
+            if (http.ok === "true") {
+                client.incr("nextid_id", function(err, res) {
+                    console.log(res);
+                    var newid = "http:"+res;
+                    
+                    client.hmset([newid, 
+                        "url", http.url, 
+                        "host", http.host, 
+                        "agent", http.agent,
+                        "lang", http.lang, 
+                        "saddr", http.saddr, 
+                        "daddr", http.daddr,
+                        "time", http.time, 
+                        "time_format", http.time_format]);
 
-                client.zadd("http_list", http.time, newid);
-                client.sadd("hosts", http.host);
-                client.sadd("ips", http.daddr);
-                client.sadd("urls", http.url);
-                client.zincrby("request_count", 1, http.host);
-                client.sadd(http.host, http.url);
-            });
+                    client.zadd("http_list", http.time, newid+http.host);
+                    client.sadd("hosts", http.host);
+                    client.sadd("ips", http.daddr);
+                    client.sadd("urls", http.url);
+                    client.zincrby("request_count", 1, http.host);
+                    client.sadd(http.host, http.url);
+                });
+            }
 
 
         }
@@ -50,22 +52,39 @@ pcap_session.on('packet', function (raw_packet) {
 function get_data_from_packet(data, ip, time_ms) {
     var http = {};
 
-    var d = data.toString().split("\n");
-    var ref = "";
-    for (e in d) {
-        if ( /^Referer/.test(d[e]) ) { http.ref = d[e].replace("Referer:", ""); }
+    try {
+        var d = data.toString().split("\n");
+        var ref = "";
+        for (e in d) {
+            if ( /^Referer/.test(d[e]) ) { 
+                http.ref = d[e].replace("Referer:", ""); 
+            }
+            if ( /^Host/.test(d[e]) ) { 
+                var temp_host = d[1].split(" ")[1]
+                if (temp_host) {
+                    http.host = temp_host.replace("\r", "");
+                }
+            }
+            if ( /^Agent/.test(d[e]) ) { 
+                http.agent = d[e].replace("Agent:", "");
+            }
+            if ( /^Accept-Language/.test(d[e]) ) { 
+                http.lang = d[e].replace("Accept-Language", "");
+            }
+        }
+        http.url = d[0].split(" ")[1];
+
+        http.saddr = ip.saddr; 
+        http.daddr = ip.daddr;
+
+        http.time = time_ms; 
+        http.time_format = moment(http.time).format("MM/DD/YY h:mm");
+    } catch(ex) {
+        console.log("exception " + ex);
+
     }
-    http.url = d[0].split(" ")[1];
-    http.host = d[1].split(" ")[1].replace("\r", "");
-    http.agent = d[2].replace("Agent:", "");
-    http.lang = d[4].replace("Accept-Language:", "");
 
-    http.saddr = ip.saddr; 
-    http.daddr = ip.daddr;
-
-    http.time = time_ms; 
-    http.time_format = moment(http.time).format("MM/DD/YY h:mm");
-
+    http.ok = "true";
     return http;
 }
 

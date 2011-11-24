@@ -15,8 +15,17 @@ client.hkeys("hash key", function (err, replies) {
 });
 */
 
+/*
 client.incr("nextid", function(err, res) {
-    client.zadd("list", 2, res);
+    client.zadd("list", res, res);
 });
+client.zadd("list2", 22, "twenty two");
+client.zadd("list2", 23, "twenty three");
+*/
+client.zrevrange("list2", 0, -1, 'WITHSCORES', function(err, res) {
+    console.log(res);
+    client.quit();
+});
+
 
     
